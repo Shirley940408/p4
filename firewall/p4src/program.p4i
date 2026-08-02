@@ -899,12 +899,41 @@ header ethernet_t {
     bit<16> etherType;
 }
 
+header ipv4_t {
+    bit<4> version;
+    bit<4> ihl;
+    bit<8> diffserv;
+    bit<16> totalLen;
+    bit<16> identification;
+    bit<3> flags;
+    bit<13> fragOffset;
+    bit<8> ttl;
+    bit<8> protocol;
+    bit<16> hdrChecksum;
+    ip4Addr_t srcAddr;
+    ip4Addr_t dstAddr;
+}
+
+header arp_t {
+    bit<16> hwType;
+    bit<16> protoType;
+    bit<8> hwAddrLen;
+    bit<8> protoAddrLen;
+    bit<16> opcode;
+    macAddr_t senderMac;
+    ip4Addr_t senderIp;
+    macAddr_t targetMac;
+    ip4Addr_t targetIp;
+}
+
 struct metadata {
     /* empty */
 }
 
 struct headers {
     ethernet_t ethernet;
+    ipv4_t ipv4;
+    arp_t arp;
 }
 
 
@@ -919,6 +948,20 @@ parser MyParser(packet_in packet,
 
     state start {
         packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            0x0800: parse_ipv4;
+            0x0806: parse_arp;
+            default: accept;
+        }
+    }
+
+    state parse_ipv4 {
+        packet.extract(hdr.ipv4);
+        transition accept;
+    }
+
+    state parse_arp {
+        packet.extract(hdr.arp);
         transition accept;
     }
 }
@@ -941,36 +984,64 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
 
-    // 丢弃数据包的 Action
+    register<bit<32>>(4096) counters;
+
     action drop() {
         mark_to_drop(standard_metadata);
     }
 
-    // 转发数据包的 Action
-    action forward(bit<9> egress_port) {
+    action ipv4_forward(macAddr_t dst_mac, bit<9> egress_port) {
+        hdr.ethernet.dstAddr = dst_mac;
+        standard_metadata.egress_spec = egress_port;
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+    }
+
+    action arp_forward(bit<9> egress_port) {
         standard_metadata.egress_spec = egress_port;
     }
 
-    // 1. 根据源 MAC 地址判断是否允许通过/丢弃 (防火墙逻辑)
-    table smac {
+    action ids_drop() {
+        bit<32> index = (bit<32>)hdr.ipv4.srcAddr ^ ((bit<32>)hdr.ipv4.dstAddr << 8) ^ ((bit<32>)hdr.ipv4.protocol << 24);
+        bit<16> flow_idx = (bit<16>)(index[11:0]);
+        bit<32> count;
+        counters.read(count, (bit<32>)flow_idx);
+        count = count + 1;
+        counters.write((bit<32>)flow_idx, count);
+        mark_to_drop(standard_metadata);
+    }
+
+    table ip_filter {
         key = {
-            hdr.ethernet.srcAddr: exact;
+            hdr.ipv4.srcAddr: exact;
+            hdr.ipv4.protocol: exact;
         }
         actions = {
-            drop;
+            ids_drop;
             NoAction;
         }
         size = 256;
-        default_action = NoAction; // 默认放行
+        default_action = NoAction;
     }
 
-    // 2. 根据目的 MAC 地址决定转发端口 (L2 转发逻辑)
-    table dmac {
+    table ipv4_lpm {
         key = {
-            hdr.ethernet.dstAddr: exact;
+            hdr.ipv4.dstAddr: lpm;
         }
         actions = {
-            forward;
+            ipv4_forward;
+            drop;
+            NoAction;
+        }
+        size = 1024;
+        default_action = drop;
+    }
+
+    table arp_table {
+        key = {
+            hdr.arp.targetIp: exact;
+        }
+        actions = {
+            arp_forward;
             NoAction;
         }
         size = 256;
@@ -978,12 +1049,16 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        // 先进行源 MAC 匹配（如果命中 drop 动作，直接结束或由 v1model 处理丢包）
-        if (smac.apply().hit) {
-            // 如果在 smac 表中命中了 drop 动作，就无需再查 dmac 表
+        if (hdr.arp.isValid()) {
+            arp_table.apply();
+        } else if (hdr.ipv4.isValid()) {
+            if (ip_filter.apply().hit) {
+                // IDS matched; packet is dropped and counter updated.
+            } else {
+                ipv4_lpm.apply();
+            }
         } else {
-            // 未被防火墙拦截的数据包，正常查 dmac 表进行转发
-            dmac.apply();
+            drop();
         }
     }
 }
@@ -1015,8 +1090,9 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
-        //parsed headers have to be added again into the packet.
         packet.emit(hdr.ethernet);
+        packet.emit(hdr.ipv4);
+        packet.emit(hdr.arp);
     }
 }
 

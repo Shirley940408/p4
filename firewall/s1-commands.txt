@@ -1,4 +1,14 @@
-table_add dmac forward 00:00:0a:00:00:01 => 1
-table_add dmac forward 00:00:0a:00:00:02 => 2
-table_add dmac forward 00:00:0a:00:00:03 => 3
-table_add dmac forward 00:00:0a:00:00:04 => 4
+# IDS rule: drop IPv4 traffic from source IP 10.0.0.1 using TCP.
+table_add ip_filter ids_drop 10.0.0.1 0x06
+
+# IPv4 forwarding rules for the L3 topology.
+table_add ipv4_lpm ipv4_forward 10.0.0.1/32 => 00:00:0a:00:00:01 1
+table_add ipv4_lpm ipv4_forward 10.0.0.2/32 => 00:00:0a:00:00:02 2
+table_add ipv4_lpm ipv4_forward 10.0.0.3/32 => 00:00:0a:00:00:03 3
+table_add ipv4_lpm ipv4_forward 10.0.0.4/32 => 00:00:0a:00:00:04 4
+
+# ARP forwarding support for basic host communication.
+table_add arp_table arp_forward 10.0.0.1 => 1
+table_add arp_table arp_forward 10.0.0.2 => 2
+table_add arp_table arp_forward 10.0.0.3 => 3
+table_add arp_table arp_forward 10.0.0.4 => 4

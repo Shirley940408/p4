@@ -1,0 +1,10 @@
+Calling target program-options parser
+[00:24:52.235] [bmv2] [D] [thread 70558] Set default default entry for table 'MyIngress.dmac': MyIngress.drop - 
+Adding interface s3-eth1 as port 1
+[00:24:52.235] [bmv2] [D] [thread 70558] Adding interface s3-eth1 as port 1
+Adding interface s3-eth2 as port 2
+[00:24:52.243] [bmv2] [D] [thread 70558] Adding interface s3-eth2 as port 2
+Adding interface s3-eth3 as port 3
+[00:24:52.248] [bmv2] [D] [thread 70558] Adding interface s3-eth3 as port 3
+[00:24:52.249] [bmv2] [I] [thread 70558] Starting Thrift server on port 9092
+[00:24:52.249] [bmv2] [I] [thread 70558] Thrift server was started

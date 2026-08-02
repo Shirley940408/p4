@@ -116,7 +116,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/home/p4/Downloads/simple-switch/program1/p4src/program.p4",
-        "line" : 112,
+        "line" : 113,
         "column" : 8,
         "source_fragment" : "MyDeparser"
       },
@@ -129,7 +129,67 @@
   "register_arrays" : [],
   "calculations" : [],
   "learn_lists" : [],
-  "actions" : [],
+  "actions" : [
+    {
+      "name" : "NoAction",
+      "id" : 0,
+      "runtime_data" : [],
+      "primitives" : []
+    },
+    {
+      "name" : "MyIngress.drop",
+      "id" : 1,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "mark_to_drop",
+          "parameters" : [
+            {
+              "type" : "header",
+              "value" : "standard_metadata"
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Downloads/simple-switch/program1/p4src/program.p4",
+            "line" : 62,
+            "column" : 8,
+            "source_fragment" : "mark_to_drop(standard_metadata)"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "MyIngress.forward",
+      "id" : 2,
+      "runtime_data" : [
+        {
+          "name" : "egress_port",
+          "bitwidth" : 9
+        }
+      ],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "egress_spec"]
+            },
+            {
+              "type" : "runtime_data",
+              "value" : 0
+            }
+          ],
+          "source_info" : {
+            "filename" : "/home/p4/Downloads/simple-switch/program1/p4src/program.p4",
+            "line" : 66,
+            "column" : 8,
+            "source_fragment" : "standard_metadata.egress_spec = egress_port"
+          }
+        }
+      ]
+    }
+  ],
   "pipelines" : [
     {
       "name" : "ingress",
@@ -140,8 +200,47 @@
         "column" : 8,
         "source_fragment" : "MyIngress"
       },
-      "init_table" : null,
-      "tables" : [],
+      "init_table" : "MyIngress.dmac",
+      "tables" : [
+        {
+          "name" : "MyIngress.dmac",
+          "id" : 0,
+          "source_info" : {
+            "filename" : "/home/p4/Downloads/simple-switch/program1/p4src/program.p4",
+            "line" : 69,
+            "column" : 10,
+            "source_fragment" : "dmac"
+          },
+          "key" : [
+            {
+              "match_type" : "exact",
+              "name" : "hdr.ethernet.dstAddr",
+              "target" : ["ethernet", "dstAddr"],
+              "mask" : null
+            }
+          ],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 256,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [2, 1, 0],
+          "actions" : ["MyIngress.forward", "MyIngress.drop", "NoAction"],
+          "base_default_next" : null,
+          "next_tables" : {
+            "MyIngress.forward" : null,
+            "MyIngress.drop" : null,
+            "NoAction" : null
+          },
+          "default_entry" : {
+            "action_id" : 1,
+            "action_const" : false,
+            "action_data" : [],
+            "action_entry_const" : false
+          }
+        }
+      ],
       "action_profiles" : [],
       "conditionals" : []
     },
@@ -150,7 +249,7 @@
       "id" : 1,
       "source_info" : {
         "filename" : "/home/p4/Downloads/simple-switch/program1/p4src/program.p4",
-        "line" : 91,
+        "line" : 92,
         "column" : 8,
         "source_fragment" : "MyEgress"
       },

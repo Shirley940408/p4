@@ -956,14 +956,15 @@ control MyIngress(inout headers hdr,
 
         actions = {
             forward;
+            drop;
             NoAction;
         }
         size = 256;
-        default_action = NoAction;
+        default_action = drop;
     }
 
     apply {
-        // dmac.apply();
+        dmac.apply();
     }
 }
 
